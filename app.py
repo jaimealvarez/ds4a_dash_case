@@ -282,7 +282,7 @@ def update_pnl_types(exchange, leverage, start_date, end_date):
              'type': 'bar', 'name': 'Long'}
         ],
         'layout': {
-            'title': 'Profits and loses over time',
+            'title': 'PnL vs Trade type',
             'height': '100%'
         }
     }
@@ -305,7 +305,7 @@ def update_daily_btc(exchange, leverage, start_date, end_date):
             {'x': dff['Entry time'], 'y': dff['BTC Price'], 'type': 'line', 'name':'BTC over time'}
         ],
         'layout': {
-            'title': 'BTC over time',
+            'title': 'Daily BTC price',
             'height': '100%'
         }
     }
