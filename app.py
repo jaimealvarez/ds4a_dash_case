@@ -4,8 +4,11 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
 import dash_table
+from sqlalchemy import create_engine
 
 pd.options.mode.chained_assignment = None
+
+engine = create_engine('postgresql://test:test@localhost/trades')
 
 df = pd.read_csv('aggr.csv', parse_dates=['Entry time'])
 
