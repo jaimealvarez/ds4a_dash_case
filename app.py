@@ -8,26 +8,28 @@ from sqlalchemy import create_engine
 
 pd.options.mode.chained_assignment = None
 
-engine = create_engine('postgresql://test:test@localhost/trades')
+engine = create_engine('postgresql://test:test@nps-demo-instance.cnmegg5nfymv.us-east-2.rds.amazonaws.com/strategy')
 
-df = pd.read_csv('aggr.csv', parse_dates=['Entry time'])
+#df = pd.read_csv('aggr.csv', parse_dates=['Entry time'])
+
+df = pd.read_sql("SELECT * FROM trades", engine.connect(), parse_dates=('entry_time'))
 
 app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/uditagarwal/pen/oNvwKNP.css', 'https://codepen.io/uditagarwal/pen/YzKbqyV.css'])
 
 
 def filter_df(df, exchange, margin, start_date, end_date):
-    return df[(df['Exchange'] == exchange)
-              & (df['Margin'] == margin)
-              & (df['Entry time'] >= start_date)
-              & (df['Entry time'] <= end_date)]
+    return df[(df['exchange'] == exchange)
+              & (df['margin'] == margin)
+              & (df['entry_time'] >= start_date)
+              & (df['entry_time'] <= end_date)]
 
 
 def calc_returns_over_month(dff):
     out = []
-    dff['YearMonth'] = pd.to_datetime(dff['Entry time']).map(lambda x: "{}-{}".format(x.year, x.month))
+    dff['YearMonth'] = pd.to_datetime(dff['entry_time']).map(lambda x: "{}-{}".format(x.year, x.month))
     for name, group in dff.groupby('YearMonth'):
-        exit_balance = group.head(1)['Exit balance'].values[0]
-        entry_balance = group.tail(1)['Entry balance'].values[0]
+        exit_balance = group.head(1)['exit_balance'].values[0]
+        entry_balance = group.tail(1)['entry_balance'].values[0]
         monthly_return = (exit_balance*100 / entry_balance) -100
         out.append({
             'month': name,
@@ -39,15 +41,15 @@ def calc_returns_over_month(dff):
 
 
 def calc_btc_returns(dff):
-    btc_start_value = dff.tail(1)['BTC Price'].values[0]
-    btc_end_value = dff.head(1)['BTC Price'].values[0]
+    btc_start_value = dff.tail(1)['btc_price'].values[0]
+    btc_end_value = dff.head(1)['btc_price'].values[0]
     btc_returns = (btc_end_value * 100/ btc_start_value)-100
     return btc_returns
 
 
 def calc_strat_returns(dff):
-    start_value = dff.tail(1)['Exit balance'].values[0]
-    end_value = dff.head(1)['Entry balance'].values[0]
+    start_value = dff.tail(1)['exit_balance'].values[0]
+    end_value = dff.head(1)['entry_balance'].values[0]
     returns = (end_value * 100/ start_value)-100
     return returns
 
@@ -75,7 +77,7 @@ app.layout = html.Div(children=[
                                     dcc.RadioItems(
                                         id="exchange-select",
                                         options=[
-                                            {'label': label, 'value': label} for label in df['Exchange'].unique()
+                                            {'label': label, 'value': label} for label in df['exchange'].unique()
                                         ],
                                         value='Bitmex',
                                         labelStyle={'display': 'inline-block'}
@@ -89,7 +91,7 @@ app.layout = html.Div(children=[
                                     dcc.RadioItems(
                                         id="leverage-select",
                                         options=[
-                                            {'label': label, 'value': label} for label in df['Margin'].unique()
+                                            {'label': label, 'value': label} for label in df['margin'].unique()
                                         ],
                                         value=1,
                                         labelStyle={'display': 'inline-block'}
@@ -102,8 +104,8 @@ app.layout = html.Div(children=[
                                     html.H6("Select a date"),
                                     dcc.DatePickerRange(
                                         id="date-range-select",
-                                        start_date=df['Entry time'].min(),
-                                        end_date=df['Entry time'].max(),
+                                        start_date=df['entry_time'].min(),
+                                        end_date=df['entry_time'].max(),
                                         display_format='MMM YY'
                                     )
                                 ]
@@ -157,12 +159,12 @@ app.layout = html.Div(children=[
                             dash_table.DataTable(
                                 id='table',
                                 columns=[
-                                    {'name': 'Number', 'id': 'Number'},
-                                    {'name': 'Trade type', 'id': 'Trade type'},
-                                    {'name': 'Exposure', 'id': 'Exposure'},
-                                    {'name': 'Entry balance', 'id': 'Entry balance'},
-                                    {'name': 'Exit balance', 'id': 'Exit balance'},
-                                    {'name': 'Pnl (incl fees)', 'id': 'Pnl (incl fees)'},
+                                    {'name': 'Number', 'id': 'number'},
+                                    {'name': 'Trade type', 'id': 'trade_type'},
+                                    {'name': 'Exposure', 'id': 'exposure'},
+                                    {'name': 'Entry balance', 'id': 'entry_balance'},
+                                    {'name': 'Exit balance', 'id': 'exit_balance'},
+                                    {'name': 'Pnl (incl fees)', 'id': 'pnl_incl_fees'},
                                 ],
                                 style_cell={'width': '50px'},
                                 style_table={
@@ -209,8 +211,8 @@ app.layout = html.Div(children=[
 )
 def update_date_ranges(exchange_selected):
     return (
-        df[df['Exchange'] == exchange_selected]['Entry time'].min(),
-        df[df['Exchange'] == exchange_selected]['Entry time'].max()
+        df[df['exchange'] == exchange_selected]['entry_time'].min(),
+        df[df['exchange'] == exchange_selected]['entry_time'].max()
     )
 
 
@@ -279,9 +281,9 @@ def update_pnl_types(exchange, leverage, start_date, end_date):
     dff = filter_df(df, exchange, leverage, start_date, end_date)
     figure = {
         'data': [
-            {'x': dff['Entry time'], 'y': dff[dff['Trade type'] == 'Short']['Pnl (incl fees)'],
+            {'x': dff['entry_time'], 'y': dff[dff['trade_type'] == 'Short']['pnl_incl_fees'],
              'type': 'bar', 'name': 'Short'},
-            {'x': dff['Entry time'], 'y': dff[dff['Trade type'] == 'Long']['Pnl (incl fees)'],
+            {'x': dff['entry_time'], 'y': dff[dff['trade_type'] == 'Long']['pnl_incl_fees'],
              'type': 'bar', 'name': 'Long'}
         ],
         'layout': {
@@ -305,7 +307,7 @@ def update_daily_btc(exchange, leverage, start_date, end_date):
     dff = filter_df(df, exchange, leverage, start_date, end_date)
     figure = {
         'data': [
-            {'x': dff['Entry time'], 'y': dff['BTC Price'], 'type': 'line', 'name':'BTC over time'}
+            {'x': dff['entry_time'], 'y': dff['btc_price'], 'type': 'line', 'name':'BTC over time'}
         ],
         'layout': {
             'title': 'Daily BTC price',
@@ -327,7 +329,7 @@ def update_balance(exchange, leverage, start_date, end_date):
     dff = filter_df(df, exchange, leverage, start_date, end_date)
     figure = {
         'data': [
-            {'x': dff['Entry time'], 'y': dff['Exit balance'], 'type': 'line', 'name':'Balance over time'}
+            {'x': dff['entry_time'], 'y': dff['exit_balance'], 'type': 'line', 'name':'Balance over time'}
         ],
         'layout': {
             'title': 'Balance over time',
